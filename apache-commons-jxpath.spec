@@ -3,7 +3,7 @@
 
 Name:             apache-%{short_name}
 Version:          1.3
-Release:          6
+Release:          7
 Summary:          Simple XPath interpreter
 
 Group:            Development/Java

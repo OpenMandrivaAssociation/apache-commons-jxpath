@@ -16,7 +16,7 @@ Patch0:           %{short_name}-mockrunner.patch
 BuildArch:        noarch
 
 BuildRequires:    java-devel >= 0:1.6.0
-BuildRequires:    jpackage-utils
+BuildRequires:    jpackage-utils >= 0:1.7.5
 BuildRequires:    maven2 >= 2.2.1
 BuildRequires:    maven-antrun-plugin
 BuildRequires:    maven-assembly-plugin
@@ -33,13 +33,13 @@ BuildRequires:    jsp
 BuildRequires:    el_api
 
 Requires:         java >= 0:1.6.0
-Requires:         jpackage-utils
+Requires:         jpackage-utils >= 0:1.7.5
 Requires:         jdom >= 0:1.0
 Requires:         apache-commons-beanutils
 Requires:         apache-commons-logging
 
-Requires(post):   jpackage-utils
-Requires(postun): jpackage-utils
+Requires(post):   jpackage-utils >= 0:1.7.5
+Requires(postun): jpackage-utils >= 0:1.7.5
 
 BuildRoot:        %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
@@ -55,7 +55,7 @@ JavaBeans, Maps, Servlet contexts, DOM etc, including mixtures thereof.
 %package javadoc
 Summary:          API documentation for %{name}
 Group:            Development/Java
-Requires:         jpackage-utils
+Requires:         jpackage-utils >= 0:1.7.5
 
 # This should go away with F-17
 Provides:         jakarta-%{short_name}-javadoc = 0:%{version}-%{release}

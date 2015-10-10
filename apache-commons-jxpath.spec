@@ -4,7 +4,7 @@
 
 Name:             apache-%{short_name}
 Version:          1.3
-Release:          17.1%{?dist}
+Release:          17.2
 Summary:          Simple XPath interpreter
 
 
@@ -14,21 +14,16 @@ Source0:          http://www.apache.org/dist/commons/%{base_name}/source/%{short
 Patch0:           %{short_name}-mockrunner.patch
 BuildArch:        noarch
 
-BuildRequires:    java-devel >= 1:1.6.0
-BuildRequires:    jpackage-utils
-BuildRequires:    maven-local
-BuildRequires:    maven-antrun-plugin
-BuildRequires:    maven-assembly-plugin
-BuildRequires:    maven-compiler-plugin
-BuildRequires:    maven-install-plugin
-BuildRequires:    maven-jar-plugin
-BuildRequires:    maven-javadoc-plugin
-BuildRequires:    maven-plugin-bundle
-BuildRequires:    maven-resources-plugin
-BuildRequires:    maven-surefire-plugin
-BuildRequires:    servlet
-BuildRequires:    jsp
-BuildRequires:    el_api
+BuildRequires:  maven-local
+BuildRequires:  mvn(commons-beanutils:commons-beanutils)
+BuildRequires:  mvn(javax.servlet:jsp-api)
+BuildRequires:  mvn(javax.servlet:servlet-api)
+BuildRequires:  mvn(jdom:jdom)
+BuildRequires:  mvn(junit:junit)
+BuildRequires:  mvn(org.apache.commons:commons-parent:pom:)
+BuildRequires:  mvn(org.apache.maven.plugins:maven-assembly-plugin)
+BuildRequires:  mvn(xerces:xercesImpl)
+BuildRequires:  mvn(xml-apis:xml-apis)
 
 Provides:         jakarta-%{short_name} = 0:%{version}-%{release}
 Obsoletes:        jakarta-%{short_name} < 0:%{version}-%{release}

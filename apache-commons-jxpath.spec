@@ -4,7 +4,7 @@
 
 Name:             apache-%{short_name}
 Version:          1.3
-Release:          17.2
+Release:          17.3
 Summary:          Simple XPath interpreter
 
 

@@ -1,171 +1,131 @@
-%{?_javapackages_macros:%_javapackages_macros}
-%global base_name       jxpath
-%global short_name      commons-%{base_name}
+Name:		apache-commons-jxpath
+Version:	1.4.0
+Release:	1
+Summary:	XPath interpreter for Java object graphs
+Group:		Development/Java
+License:	ASL 2.0
+URL:		https://commons.apache.org/proper/commons-jxpath/
+Source0:	https://github.com/apache/commons-jxpath/archive/refs/tags/rel/commons-jxpath-%{version}.tar.gz#/commons-jxpath-%{version}.tar.gz
 
-Name:             apache-%{short_name}
-Version:          1.3
-Release:          17.3
-Summary:          Simple XPath interpreter
+BuildArch:	noarch
+BuildRequires:	python
+BuildRequires:	mvn(org.apache.commons:commons-parent:pom::)
+BuildRequires:	mvn(org.apache:apache:pom::)
+BuildRequires:	mvn(commons-beanutils:commons-beanutils)
+# Literal, so the first rpmbuild -bs records them before sysjar is installed.
+BuildRequires:	maven
+BuildRequires:	java-current-devel
+BuildSystem:	maven
+BuildOption(install):	--file-name commons-jxpath --link %{name} --alias org.apache.commons:commons-jxpath
 
-
-License:          ASL 2.0
-URL:              https://commons.apache.org/%{base_name}/
-Source0:          http://www.apache.org/dist/commons/%{base_name}/source/%{short_name}-%{version}-src.tar.gz
-Patch0:           %{short_name}-mockrunner.patch
-BuildArch:        noarch
-
-BuildRequires:  maven-local
-BuildRequires:  mvn(commons-beanutils:commons-beanutils)
-BuildRequires:  mvn(javax.servlet:jsp-api)
-BuildRequires:  mvn(javax.servlet:servlet-api)
-BuildRequires:  mvn(jdom:jdom)
-BuildRequires:  mvn(junit:junit)
-BuildRequires:  mvn(org.apache.commons:commons-parent:pom:)
-BuildRequires:  mvn(org.apache.maven.plugins:maven-assembly-plugin)
-BuildRequires:  mvn(xerces:xercesImpl)
-BuildRequires:  mvn(xml-apis:xml-apis)
-
-Provides:         jakarta-%{short_name} = 0:%{version}-%{release}
-Obsoletes:        jakarta-%{short_name} < 0:%{version}-%{release}
+Provides:	jakarta-commons-jxpath = 0:%{version}-%{release}
+Obsoletes:	jakarta-commons-jxpath < 0:%{version}-%{release}
+Obsoletes:	%{name}-javadoc < %{version}-%{release}
+Obsoletes:	jakarta-commons-jxpath-javadoc < 0:%{version}-%{release}
 
 %description
-Defines a simple interpreter of an expression language called XPath.
-JXPath applies XPath expressions to graphs of objects of all kinds:
-JavaBeans, Maps, Servlet contexts, DOM etc, including mixtures thereof.
-
-%package javadoc
-Summary:          API documentation for %{name}
-
-Requires:         jpackage-utils
-
-Provides:         jakarta-%{short_name}-javadoc = 0:%{version}-%{release}
-Obsoletes:        jakarta-%{short_name}-javadoc < 0:%{version}-%{release}
-
-%description javadoc
-This package contains the API documentation for %{name}.
+Apache Commons JXPath applies XPath expressions to JavaBeans, maps,
+DOM, and other object graphs. 1.4.0 adds the ends-with function and
+fixes empty documents, indexed sets, LazyDynaBean, and concurrent use
+of the context factory and function library. Java 8 is required. Tests
+are skipped. JDOM and servlet contexts are omitted because those
+libraries are not packaged. Commons BeanUtils is required. The
+automatic module name is org.apache.commons.jxpath.
 
 %prep
-%setup -q -n %{short_name}-%{version}-src
-%patch0 -p1
+%autosetup -n commons-jxpath-rel-commons-jxpath-%{version}
+# JDOM and the servlet API are loaded by name and are not packaged.
+# BeanUtils is a real import, so it stays and is no longer optional.
+# The jacoco profile activates from a marker file and is not used.
+python - <<'PY'
+import shutil
+import xml.etree.ElementTree as ET
+from pathlib import Path
 
-%build
-# we are skipping tests because we don't have com.mockrunner in repos yet
-%mvn_file  : %{short_name} %{name}
-%mvn_alias : org.apache.commons:%{short_name}
-%mvn_build -f
+shutil.rmtree("src/main/java/org/apache/commons/jxpath/ri/model/jdom")
+shutil.rmtree("src/main/java/org/apache/commons/jxpath/servlet")
+Path("src/main/java/org/apache/commons/jxpath/xml/JDOMParser.java").unlink()
+Path("src/site/resources/profile.jacoco").unlink()
 
-%install
-%mvn_install
+ET.register_namespace("", "http://maven.apache.org/POM/4.0.0")
+ET.register_namespace("xsi", "http://www.w3.org/2001/XMLSchema-instance")
 
-%pre javadoc
-# workaround for rpm bug, can be removed in F-20
-[ $1 -gt 1 ] && [ -L %{_javadocdir}/%{name} ] && \
-rm -rf $(readlink -f %{_javadocdir}/%{name}) %{_javadocdir}/%{name} || :
+def local(tag):
+    return tag.rsplit("}", 1)[-1]
 
+drop_artifacts = {"servlet-api", "jsp-api", "jdom"}
+path = Path("pom.xml")
+tree = ET.parse(path)
+root = tree.getroot()
+removed = []
+for parent in list(root.iter()):
+    if local(parent.tag) != "dependencies":
+        continue
+    for child in list(parent):
+        if local(child.tag) != "dependency":
+            continue
+        scope = artifact = ""
+        for item in child:
+            name = local(item.tag)
+            if name == "scope":
+                scope = (item.text or "").strip()
+            elif name == "artifactId":
+                artifact = (item.text or "").strip()
+        if scope == "test" or artifact in drop_artifacts:
+            parent.remove(child)
+            removed.append(artifact)
+expected = {
+    "servlet-api",
+    "jsp-api",
+    "jdom",
+    "junit-jupiter-engine",
+    "mockrunner-jdk1.3-j2ee1.3",
+    "commons-lang3",
+    "commons-io",
+}
+if set(removed) != expected:
+    raise SystemExit("unexpected dependency edit: " + " ".join(sorted(removed)))
+bean = None
+for parent in root.iter():
+    if local(parent.tag) != "dependency":
+        continue
+    artifact = ""
+    for item in parent:
+        if local(item.tag) == "artifactId":
+            artifact = (item.text or "").strip()
+    if artifact == "commons-beanutils":
+        bean = parent
+if bean is None:
+    raise SystemExit("beanutils dependency missing")
+for item in list(bean):
+    if local(item.tag) == "optional":
+        bean.remove(item)
+tree.write(path, encoding="UTF-8", xml_declaration=True)
+text = path.read_text(encoding="utf-8")
+for needle in (
+    "<artifactId>servlet-api</artifactId>",
+    "<artifactId>jsp-api</artifactId>",
+    "<artifactId>jdom</artifactId>",
+    "<scope>test</scope>",
+    "<optional>",
+):
+    if needle in text:
+        raise SystemExit("pom still contains " + needle)
+if "commons-beanutils" not in text:
+    raise SystemExit("beanutils was removed")
+for java in Path("src/main/java").rglob("*.java"):
+    for line in java.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("import ") and ("org.jdom" in stripped or "javax.servlet" in stripped):
+            raise SystemExit("import remains in " + str(java))
+PY
+
+%build -a
+cat > manifest-addition <<'EOF'
+Automatic-Module-Name: org.apache.commons.jxpath
+EOF
+jar ufm target/commons-jxpath-%{version}.jar manifest-addition
+java --module-path target/commons-jxpath-%{version}.jar --describe-module org.apache.commons.jxpath | grep -q '^org.apache.commons.jxpath'
 
 %files -f .mfiles
-%doc LICENSE.txt NOTICE.txt
-
-%files javadoc -f .mfiles-javadoc
-%doc LICENSE.txt NOTICE.txt
-
-%changelog
-* Sat Aug 03 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 1.3-17
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_20_Mass_Rebuild
-
-* Mon Apr 29 2013 Mikolaj Izdebski <mizdebsk@redhat.com> - 1.3-16
-- Remove unneeded BR: maven-idea-plugin
-
-* Tue Feb 26 2013 Mikolaj Izdebski <mizdebsk@redhat.com> - 1.3-15
-- Migrate from Tomcat 6 to Tomcat 7
-- Resolves: rhbz#913879
-
-* Wed Feb 13 2013 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 1.3-14
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_19_Mass_Rebuild
-
-* Wed Feb 06 2013 Java SIG <java-devel@lists.fedoraproject.org> - 1.3-13
-- Update for https://fedoraproject.org/wiki/Fedora_19_Maven_Rebuild
-- Replace maven BuildRequires with maven-local
-
-* Tue Jan 15 2013 Michal Srb <msrb@redhat.com> - 1.3-12
-- Build with xmvn
-
-* Thu Nov 22 2012 Mikolaj Izdebski <mizdebsk@redhat.com> - 1.3-11
-- Install NOTICE file
-- Resolves: rhbz#879556
-
-* Fri Nov  9 2012 Mikolaj Izdebski <mizdebsk@redhat.com> - 1.3-10
-- Don't build-require maven2
-
-* Wed Jul 18 2012 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 1.3-9
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_18_Mass_Rebuild
-
-* Fri Mar  2 2012 Stanislav Ochotnicky <sochotnicky@redhat.com> 1.3-8
-- Fix build and update to latest guidelines
-
-* Thu Jan 12 2012 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 1.3-7
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_17_Mass_Rebuild
-
-* Mon Feb 07 2011 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 1.3-6
-- Rebuilt for https://fedoraproject.org/wiki/Fedora_15_Mass_Rebuild
-
-* Thu Oct 21 2010 Chris Spike <chris.spike@arcor.de> 1.3-5
-- tomcat5 -> tomcat6 BRs/Rs
-
-* Thu Jul  8 2010 Stanislav Ochotnicky <sochotnicky@redhat.com> - 1.3-4
-- Add license to javadoc subpackage
-
-* Thu May 27 2010 Stanislav Ochotnicky <sochotnicky@redhat.com> - 1.3-3
-- Add tomcat5 to BR
-
-* Tue May 25 2010 Stanislav Ochotnicky <sochotnicky@redhat.com> - 1.3-2
-- Fix ownership of some directories
-
-* Tue May 25 2010 Stanislav Ochotnicky <sochotnicky@redhat.com> - 1.3-1
-- Rename package (jakarta-commons-jxpath->apache-commons-jxpath)
-- Cleanup spec file
-- Build using maven, drop old pom file from sources
-- Update to upstream version
-
-* Thu Aug 20 2009 Alexander Kurtakov <akurtako@redhat.com> 0:1.2-9
-- Fix random spaces.
-
-* Wed Aug 19 2009 Alexander Kurtakov <akurtako@redhat.com> 0:1.2-8
-- BuildRequires java-devel >= 1.6.0.
-
-* Wed Aug 19 2009 Alexander Kurtakov <akurtako@redhat.com> 0:1.2-7
-- Initial package for Fedora.
-
-* Sun May 17 2009 Fernando Nasser <fnasser@redhat.com> - 0:1.2-6
-- Fix License
-- Provide intructions for obtaining source and refresh source tar ball
-
-* Wed Mar 18 2009 Yong Yang <yyang@redhat.com> - 0:1.2-5
-- rebuild with new maven2 2.0.8 built in bootstrap mode
-
-* Thu Feb 05 2009 Yong Yang <yyang@redhat.com> - 0:1.2-4
-- Fix release tag
-
-* Thu Jan 08 2009 Yong Yang <yyang@redhat.com> - 0:1.2-3jpp.1
-- Import from dbhole's maven 2.0.8 packages, initial building
-
-* Wed Apr 09 2008 Deepak Bhole <dbhole@redhat.com> - 0:1.2-2jpp.1
-- Import from JPackage
-- Added pom file
-
-* Wed Jun 07 2006 Fernando Nasser <fnasser@redhat.com> - 0:1.2-2jpp
-- First JPP 1.7 build
-
-* Sat Sep 18 2004 Ralph Apel <r.apel at r-apel.de> - 0:1.2-1jpp
-- Upgrade to 1.2
-- Use jdom-1.0-0.rc1.1jpp
-- Relax some versioned dependencies
-
-* Sun Aug 23 2004 Randy Watler <rwatler at finali.com> - 0:1.1-3jpp
-- Rebuild with ant-1.6.2
-
-* Tue Jun 01 2004 Randy Watler <rwatler at finali.com> - 0:1.1-2jpp
-- Upgrade to Ant 1.6.X
-
-* Mon Jan 19 2004 Ralph Apel <r.apel at r-apel.de> - 0:1.1-1jpp
-- First JPackage release
+%doc LICENSE.txt NOTICE.txt RELEASE-NOTES.txt README.md
